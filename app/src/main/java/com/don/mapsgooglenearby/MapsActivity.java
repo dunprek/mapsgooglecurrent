@@ -6,10 +6,14 @@ import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
+import android.os.Handler;
+import android.os.SystemClock;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
+import android.view.animation.BounceInterpolator;
+import android.view.animation.Interpolator;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -17,7 +21,13 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.GoogleMap.OnMyLocationButtonClickListener;
 import com.google.android.gms.maps.GoogleMap.OnMyLocationClickListener;
+import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class MapsActivity extends BaseActivity
         implements
@@ -25,7 +35,6 @@ public class MapsActivity extends BaseActivity
         OnMyLocationClickListener,
         OnMapReadyCallback,
         ActivityCompat.OnRequestPermissionsResultCallback {
-
 
 
     /**
@@ -43,6 +52,9 @@ public class MapsActivity extends BaseActivity
 
     private GoogleMap mMap;
 
+    static final LatLng myLocation = new LatLng(-6.184704, 106.844345);
+    private Marker mPerth;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,6 +64,8 @@ public class MapsActivity extends BaseActivity
         SupportMapFragment mapFragment =
                 (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
+
+
     }
 
 
@@ -62,6 +76,58 @@ public class MapsActivity extends BaseActivity
         mMap.setOnMyLocationButtonClickListener(this);
         mMap.setOnMyLocationClickListener(this);
         enableMyLocation();
+
+
+
+
+    }
+
+
+    class CustomTimerTask extends TimerTask {
+        private Context context;
+        private Handler mHandler = new Handler();
+
+        // Write Custom Constructor to pass Context
+        public CustomTimerTask(Context con) {
+            this.context = con;
+        }
+
+        @Override
+        public void run() {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    mHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            final Handler handler = new Handler();
+                            final long start = SystemClock.uptimeMillis();
+                            final long duration = 500;
+
+                            final Interpolator interpolator = new BounceInterpolator();
+
+                            handler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    long elapsed = SystemClock.uptimeMillis() - start;
+                                    float t = Math.max(
+                                            1 - interpolator.getInterpolation((float) elapsed
+                                                    / duration), 0);
+                                    mPerth.setAnchor(0.5f, 1.0f + 2 * t);
+
+                                    if (t > 0.0) {
+                                        // Post again 16ms later.
+                                        handler.postDelayed(this, 16);
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+            }).start();
+
+        }
+
     }
 
 
@@ -76,11 +142,11 @@ public class MapsActivity extends BaseActivity
                     Manifest.permission.ACCESS_FINE_LOCATION, true);
         } else if (mMap != null) {
             // Access to the location has been granted to the app.
-            mMap.setMyLocationEnabled(true);
+//            mMap.setMyLocationEnabled(true);
 
 
             //
-            LocationManager lm = (LocationManager)getSystemService(Context.LOCATION_SERVICE);
+            LocationManager lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
             Location location = lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);
 
             if (location == null) {
@@ -90,17 +156,25 @@ public class MapsActivity extends BaseActivity
                 location = lm.getLastKnownLocation(provider);
             }
 
-            if(location !=null){
-                LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 14), 1500, null);
+            if (location != null) {
+//                LatLng userLocation = new LatLng(location.getLatitude(), location.getLongitude());
+//                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(userLocation, 14), 1500, null);
+                addMyLocation(new LatLng(location.getLatitude(),location.getLongitude()));
             }
-            toast("show lat long "+
+
+
+
+
+
+          /*  toast("show lat long " +
                     (location != null ? location.getLongitude() : 0) +
                     "xxxxx " +
-                    (location != null ? location.getLatitude() : 0));
+                    (location != null ? location.getLatitude() : 0));*/
+
 
         }
     }
+
 
 
     @Override
@@ -150,4 +224,23 @@ public class MapsActivity extends BaseActivity
         PermissionUtils.PermissionDeniedDialog
                 .newInstance(true).show(getSupportFragmentManager(), "dialog");
     }
+
+
+    private void addMyLocation(LatLng latLng){
+
+        //add marker to the map
+        mPerth = mMap
+                .addMarker(new MarkerOptions()
+                        .position(latLng)
+                        .title("My Location"));
+//                        .snippet(
+//                                "Exhibition Way, Glasgow, G3 8YW\nSports: Boxing, Gymnastics, Judo, Netball, Wrestling, Weightlifting"));
+        Timer timer = new Timer();
+        TimerTask updateProfile = new CustomTimerTask(MapsActivity.this);
+        timer.scheduleAtFixedRate(updateProfile, 10,5000);
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(myLocation, 18.0f));
+    }
+
+
+
 }
